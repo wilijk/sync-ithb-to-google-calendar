@@ -134,7 +134,7 @@ def to_rfc3339(dt_val):
 def sync():
   service = get_calendar_service()
 
-  # Rentang sinkronisasi: 45 hari ke belakang sampai 45 hari ke depan
+  # Rentang sinkronisasi: 120 hari ke belakang sampai 45 hari ke depan
   now = datetime.now(WIB)
   start_dt = (now - timedelta(days=120)).replace(
         hour=0, minute=0, second=0, microsecond=0
