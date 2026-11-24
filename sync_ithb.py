@@ -92,7 +92,6 @@ def fetch_siakad_schedule(start_ts, end_ts):
   )
   res_sched.raise_for_status()
 
-  # Parse JSON dengan penanganan jika server mengirim Content-Type text/html
   try:
     return json.loads(res_sched.text.strip())
   except json.JSONDecodeError as e:
@@ -103,7 +102,6 @@ def fetch_siakad_schedule(start_ts, end_ts):
 
 
 def parse_title(raw_title):
-  # Menangani tag <br>, <br/>, atau <br />
   normalized = (
       raw_title.replace("<br/>", "<br>")
       .replace("<br />", "<br>")
@@ -117,14 +115,12 @@ def parse_title(raw_title):
 
 
 def to_rfc3339(dt_val):
-  # Jika SIAKAD mengirim Unix timestamp (int/digit string)
   if isinstance(dt_val, (int, float)) or (
       isinstance(dt_val, str) and dt_val.isdigit()
   ):
     dt = datetime.fromtimestamp(int(dt_val), tz=WIB)
     return dt.isoformat()
 
-  # Jika SIAKAD mengirim format string tanggal (misal "2026-11-23 08:00:00" atau ISO)
   dt_clean = str(dt_val).replace("T", " ").split("+")[0].strip()
   for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
     try:
@@ -173,7 +169,14 @@ def sync():
     props = item.get("extendedProperties", {}).get("private", {})
     uid = props.get("siakad_uid")
     if uid:
-      gcal_map[uid] = item
+      if uid in gcal_map:
+        # Hapus otomatis jika ditemukan acara duplikat dengan UID yang sama
+        service.events().delete(
+            calendarId=CALENDAR_ID, eventId=item["id"]
+        ).execute()
+        print(f"[CLEANED DUPLICATE] {item.get('summary')}")
+      else:
+        gcal_map[uid] = item
 
   active_uids = set()
 

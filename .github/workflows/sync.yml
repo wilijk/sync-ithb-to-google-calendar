@@ -2,9 +2,13 @@ name: Sync Jadwal ITHB to Google Calendar
 
 on:
   schedule:
-    # Berjalan otomatis setiap 30 menit
     - cron: '*/30 * * * *'
-  workflow_dispatch: # Memungkinkan dijalankan manual lewat tombol di GitHub
+  workflow_dispatch:
+
+# Mencegah dua proses berjalan bersamaan (menghindari jadwal ganda)
+concurrency:
+  group: sync-ithb-calendar
+  cancel-in-progress: false
 
 jobs:
   sync-schedule:
