@@ -1,0 +1,34 @@
+name: Sync Jadwal ITHB to Google Calendar
+
+on:
+  schedule:
+    # Berjalan otomatis setiap 30 menit
+    - cron: '*/30 * * * *'
+  workflow_dispatch: # Memungkinkan dijalankan manual lewat tombol di GitHub
+
+jobs:
+  sync-schedule:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run sync script
+        env:
+          SIAKAD_URL: ${{ secrets.SIAKAD_URL }}
+          SIAKAD_NIM: ${{ secrets.SIAKAD_NIM }}
+          SIAKAD_PASS: ${{ secrets.SIAKAD_PASS }}
+          GOOGLE_TOKEN_JSON: ${{ secrets.GOOGLE_TOKEN_JSON }}
+          GOOGLE_CALENDAR_ID: ${{ secrets.GOOGLE_CALENDAR_ID }}
+        run: python sync_ithb.py
