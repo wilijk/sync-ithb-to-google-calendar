@@ -51,7 +51,7 @@ def fetch_siakad_schedule(start_ts, end_ts):
   login_url = f"{BASE_URL}/default.php?mod=layanan"
   schedule_url = f"{BASE_URL}/modules/layanan/file/page_jadwalkuliah.php"
 
-  # 1. Buka halaman modul layanan dulu untuk mendapatkan cookie PHPSESSID awal
+  # 1. Buka halaman modul layanan untuk mendapatkan cookie PHPSESSID awal
   res_init = session.get(login_url, timeout=15)
   res_init.raise_for_status()
 
@@ -134,12 +134,12 @@ def to_rfc3339(dt_val):
 def sync():
   service = get_calendar_service()
 
-  # Rentang sinkronisasi: 7 hari ke belakang sampai 30 hari ke depan
+  # Rentang sinkronisasi: 45 hari ke belakang sampai 45 hari ke depan
   now = datetime.now(WIB)
-  start_dt = (now - timedelta(days=7)).replace(
-      hour=0, minute=0, second=0, microsecond=0
-  )
-  end_dt = (now + timedelta(days=30)).replace(
+  start_dt = (now - timedelta(days=120)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+  end_dt = (now + timedelta(days=45)).replace(
       hour=23, minute=59, second=59, microsecond=0
   )
 
@@ -159,24 +159,31 @@ def sync():
           timeMax=end_dt.isoformat(),
           privateExtendedProperty="source=ithb_sync",
           singleEvents=True,
+          maxResults=2500,
       )
       .execute()
   )
   existing_items = existing_res.get("items", [])
 
   gcal_map = {}
+  seen_slots = set()
+
   for item in existing_items:
     props = item.get("extendedProperties", {}).get("private", {})
     uid = props.get("siakad_uid")
-    if uid:
-      if uid in gcal_map:
-        # Hapus otomatis jika ditemukan acara duplikat dengan UID yang sama
-        service.events().delete(
-            calendarId=CALENDAR_ID, eventId=item["id"]
-        ).execute()
-        print(f"[CLEANED DUPLICATE] {item.get('summary')}")
-      else:
-        gcal_map[uid] = item
+    slot_key = f"{item.get('summary')}_{item['start'].get('dateTime')}"
+
+    if (uid and uid in gcal_map) or (slot_key in seen_slots):
+      service.events().delete(
+          calendarId=CALENDAR_ID, eventId=item["id"]
+      ).execute()
+      print(
+          f"[CLEANED DUPLICATE] {item.get('summary')}"
+          f" ({item['start'].get('dateTime')})"
+      )
+    elif uid:
+      gcal_map[uid] = item
+      seen_slots.add(slot_key)
 
   active_uids = set()
 
@@ -185,7 +192,7 @@ def sync():
     start_iso = to_rfc3339(ev["start"])
     end_iso = to_rfc3339(ev["end"])
 
-    raw_id = str(ev.get("id", f"{kode}_{start_iso[:16]}"))
+    raw_id = f"{kode}_{start_iso[:16]}"
     uid = f"ithb_{raw_id}"
     active_uids.add(uid)
 
