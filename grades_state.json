@@ -1,0 +1,121 @@
+{
+  "2026-1": {
+    "periode": "2026-1",
+    "ips": "-",
+    "ipk": "-",
+    "courses": {
+      "IF-301": {
+        "matkul": "Pemrograman Berorientasi Objek",
+        "sks": "3",
+        "grades": {
+          "Nilai ke-1": "-",
+          "Nilai ke-2": "61",
+          "Nilai ke-3": "-",
+          "Nilai ke-4": "-",
+          "Nilai ke-5": "-",
+          "Nilai UAS": "-",
+          "Nilai Akhir": "-",
+          "Nilai Huruf": "Belum Ada"
+        }
+      },
+      "IF-302": {
+        "matkul": "Basis Data",
+        "sks": "4",
+        "grades": {
+          "Nilai ke-1": "-",
+          "Nilai ke-2": "-",
+          "Nilai ke-3": "75",
+          "Nilai ke-4": "-",
+          "Nilai ke-5": "-",
+          "Nilai UAS": "-",
+          "Nilai Akhir": "-",
+          "Nilai Huruf": "Belum Ada"
+        }
+      },
+      "IF-303": {
+        "matkul": "Sistem Berkas",
+        "sks": "3",
+        "grades": {
+          "Nilai ke-1": "-",
+          "Nilai ke-2": "-",
+          "Nilai ke-3": "82",
+          "Nilai ke-4": "-",
+          "Nilai ke-5": "-",
+          "Nilai UAS": "-",
+          "Nilai Akhir": "-",
+          "Nilai Huruf": "Belum Ada"
+        }
+      },
+      "IF-305": {
+        "matkul": "Matvek for Informatics",
+        "sks": "3",
+        "grades": {
+          "Nilai ke-1": "55",
+          "Nilai ke-2": "-",
+          "Nilai ke-3": "-",
+          "Nilai ke-4": "-",
+          "Nilai ke-5": "-",
+          "Nilai UAS": "-",
+          "Nilai Akhir": "-",
+          "Nilai Huruf": "Belum Ada"
+        }
+      },
+      "IF-3P1": {
+        "matkul": "Praktikum Pemrograman Berorientasi Objek",
+        "sks": "1",
+        "grades": {
+          "Nilai ke-1": "81",
+          "Nilai ke-2": "56",
+          "Nilai ke-3": "73",
+          "Nilai ke-4": "85",
+          "Nilai ke-5": "-",
+          "Nilai UAS": "45",
+          "Nilai Akhir": "62.15",
+          "Nilai Huruf": "C+"
+        }
+      },
+      "IF-3P2": {
+        "matkul": "Praktikum Basis Data",
+        "sks": "1",
+        "grades": {
+          "Nilai ke-1": "-",
+          "Nilai ke-2": "-",
+          "Nilai ke-3": "-",
+          "Nilai ke-4": "-",
+          "Nilai ke-5": "-",
+          "Nilai UAS": "-",
+          "Nilai Akhir": "-",
+          "Nilai Huruf": "Belum Ada"
+        }
+      },
+      "IF-504": {
+        "matkul": "Kecerdasan Buatan",
+        "sks": "3",
+        "grades": {
+          "Nilai ke-1": "-",
+          "Nilai ke-2": "60",
+          "Nilai ke-3": "-",
+          "Nilai ke-4": "-",
+          "Nilai ke-5": "-",
+          "Nilai UAS": "-",
+          "Nilai Akhir": "-",
+          "Nilai Huruf": "Belum Ada"
+        }
+      },
+      "SI-381": {
+        "matkul": "Sistem Informasi",
+        "sks": "2",
+        "grades": {
+          "Nilai ke-1": "-",
+          "Nilai ke-2": "-",
+          "Nilai ke-3": "-",
+          "Nilai ke-4": "73",
+          "Nilai ke-5": "-",
+          "Nilai UAS": "-",
+          "Nilai Akhir": "-",
+          "Nilai Huruf": "Belum Ada"
+        }
+      }
+    }
+  }
+}
