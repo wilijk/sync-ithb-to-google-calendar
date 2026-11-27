@@ -1,21 +1,23 @@
 import io
 import json
 import os
+import threading
 import time
 from datetime import datetime
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from zoneinfo import ZoneInfo
 
 from google import genai
+from google.auth.transport.requests import Request
 from google.genai import types
 from google.oauth2.credentials import Credentials
-from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
-    MessageHandler,
     ContextTypes,
+    MessageHandler,
     filters,
 )
 
@@ -61,8 +63,9 @@ def get_calendar_service():
 # TOOLS UNTUK GEMINI FUNCTION CALLING
 # ==========================================
 
+
 def get_schedule(start_iso: str, end_iso: str) -> str:
-    """Mengambil daftar acara dan jadwal kuliah dari Google Calendar pada rentang waktu ISO 8601 (misal: 2026-11-28T00:00:00+07:00)."""
+    """Mengambil daftar acara dan jadwal kuliah dari Google Calendar beserta event_id-nya pada rentang waktu ISO 8601 (misal: 2026-11-28T00:00:00+07:00)."""
     service = get_calendar_service()
     events_result = (
         service.events()
@@ -84,6 +87,7 @@ def get_schedule(start_iso: str, end_iso: str) -> str:
         start = ev["start"].get("dateTime", ev["start"].get("date"))
         end = ev["end"].get("dateTime", ev["end"].get("date"))
         formatted.append({
+            "event_id": ev.get("id"),
             "summary": ev.get("summary", "(Tanpa Judul)"),
             "start": start,
             "end": end,
@@ -182,10 +186,21 @@ def create_calendar_event(
     created = service.events().insert(calendarId=CALENDAR_ID, body=event_body).execute()
     return json.dumps({
         "status": "created",
+        "event_id": created.get("id"),
         "summary": created.get("summary"),
         "start": created["start"].get("dateTime"),
         "end": created["end"].get("dateTime"),
         "link": created.get("htmlLink"),
+    }, ensure_ascii=False)
+
+
+def delete_calendar_event(event_id: str) -> str:
+    """Menghapus acara atau jadwal dari Google Calendar berdasarkan event_id. Selalu panggil get_schedule terlebih dahulu untuk mendapatkan event_id yang tepat sebelum menghapus."""
+    service = get_calendar_service()
+    service.events().delete(calendarId=CALENDAR_ID, eventId=event_id).execute()
+    return json.dumps({
+        "status": "deleted",
+        "event_id": event_id,
     }, ensure_ascii=False)
 
 
@@ -202,7 +217,13 @@ def get_latest_grades() -> str:
 # ==========================================
 
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-TOOLS = [get_schedule, find_free_slots, create_calendar_event, get_latest_grades]
+TOOLS = [
+    get_schedule,
+    find_free_slots,
+    create_calendar_event,
+    delete_calendar_event,
+    get_latest_grades,
+]
 
 
 def ask_gemini_agent(user_content) -> str:
@@ -213,20 +234,24 @@ def ask_gemini_agent(user_content) -> str:
         f"Kamu adalah Asisten Akademik & Kalender pribadi untuk mahasiswa Informatika ITHB.\n"
         f"Waktu saat ini: {hari_id}, {now.strftime('%Y-%m-%d %H:%M')} WIB (UTC+07:00).\n"
         f"Pengguna dapat memberikan perintah lewat teks maupun pesan suara (voice note).\n"
-        f"Gunakan tools yang tersedia untuk membaca jadwal kuliah, mencari waktu kosong, menjadwalkan kegiatan baru, atau mengecek nilai KHS.\n"
+        f"Gunakan tools yang tersedia untuk membaca jadwal kuliah, mencari waktu kosong, menjadwalkan kegiatan baru, menghapus jadwal, atau mengecek nilai KHS.\n"
+        f"Jika pengguna meminta menghapus suatu jadwal, panggil get_schedule terlebih dahulu untuk memastikan nama dan event_id jadwal tersebut sebelum memanggil delete_calendar_event. Jika ada lebih dari satu jadwal yang mirip atau ambigu, tanyakan konfirmasi ke pengguna dulu.\n"
         f"Jika pengguna meminta mencari waktu kosong dalam rentang beberapa hari (misalnya 'minggu ini'), panggil find_free_slots untuk masing-masing hari yang relevan.\n"
         f"Jawab dengan ringkas, jelas, ramah, dan gunakan format poin yang rapi."
     )
 
     models_to_try = [
+        "gemini-3.7-flash",
+        "gemini-3.6-flash",
+        "gemini-3.5-flash-lite",
         "gemini-3.8-flash",
-        "gemini-3.8-flash-lite",
     ]
     last_error = None
-    for attempt in range(4):
+
+    for model_name in models_to_try:
         try:
             response = gemini_client.models.generate_content(
-                model="gemini-3.8-flash",
+                model=model_name,
                 contents=user_content,
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
@@ -238,12 +263,13 @@ def ask_gemini_agent(user_content) -> str:
         except Exception as e:
             last_error = e
             err_str = str(e)
-            if "503" in err_str or "UNAVAILABLE" in err_str:
-                time.sleep(2 ** (attempt + 1))  # Tunggu 2s, 4s, 8s, 16s
+            if any(code in err_str for code in ("503", "UNAVAILABLE", "429", "404")):
+                time.sleep(1)
                 continue
             raise
 
     raise last_error
+
 
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(update.effective_chat.id) != ALLOWED_CHAT_ID:
@@ -254,6 +280,7 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• \"Jadwal kuliah besok apa aja?\"\n"
         "• \"Carikan waktu kosong minimal 2 jam besok buat ngerjain tugas\"\n"
         "• \"Tolong blok jam 15.00-17.00 besok buat ngajar privat\"\n"
+        "• \"Hapus jadwal ngajar privat besok\"\n"
         "• \"Gimana rekap nilai KHS aku sekarang?\""
     )
 
@@ -297,9 +324,32 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(reply)
 
 
+# ==========================================
+# HEALTH-CHECK SERVER UNTUK HOSTING CLOUD
+# ==========================================
+
+
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"OK")
+
+    def log_message(self, format, *args):
+        pass
+
+
+def start_health_server():
+    port = int(os.environ.get("PORT", 8000))
+    server = HTTPServer(("0.0.0.0", port), HealthHandler)
+    server.serve_forever()
+
+
 def main():
     if not TELEGRAM_BOT_TOKEN or not GEMINI_API_KEY:
         raise RuntimeError("Pastikan TELEGRAM_BOT_TOKEN dan GEMINI_API_KEY sudah diisi di .env!")
+
+    threading.Thread(target=start_health_server, daemon=True).start()
 
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start_cmd))
