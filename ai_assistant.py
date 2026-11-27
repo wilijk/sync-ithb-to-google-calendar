@@ -221,30 +221,29 @@ def ask_gemini_agent(user_content) -> str:
     models_to_try = [
         "gemini-3.8-flash",
         "gemini-3.8-flash-lite",
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
     ]
     last_error = None
 
-    for model_name in models_to_try:
-        try:
-            response = gemini_client.models.generate_content(
-                model=model_name,
-                contents=user_content,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction,
-                    tools=TOOLS,
-                    temperature=0.2,
-                ),
-            )
-            return response.text or "Selesai diproses."
-        except Exception as e:
-            last_error = e
-            err_str = str(e)
-            if "503" in err_str or "UNAVAILABLE" in err_str or "404" in err_str:
-                time.sleep(1.5)
-                continue
-            raise
+    for attempt in range(3):
+        for model_name in models_to_try:
+            try:
+                response = gemini_client.models.generate_content(
+                    model=model_name,
+                    contents=user_content,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        tools=TOOLS,
+                        temperature=0.2,
+                    ),
+                )
+                return response.text or "Selesai diproses."
+            except Exception as e:
+                last_error = e
+                err_str = str(e)
+                if "503" in err_str or "UNAVAILABLE" in err_str or "404" in err_str:
+                    continue
+                raise
+        time.sleep(2 ** (attempt + 1))  # Tunggu 2s, lalu 4s, lalu 8s sebelum retry
 
     raise last_error
 
