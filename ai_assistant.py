@@ -215,7 +215,7 @@ def ask_gemini_agent(user_content) -> str:
     )
 
     response = gemini_client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-3.8-flash",
         contents=user_content,
         config=types.GenerateContentConfig(
             system_instruction=system_instruction,
