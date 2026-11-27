@@ -1,9 +1,8 @@
-import json
+﻿import json
 import os
 import requests
 from bs4 import BeautifulSoup
 
-# Muat file .env secara otomatis jika dijalankan di lokal (opsional)
 if os.path.exists(".env"):
     with open(".env", "r", encoding="utf-8") as f:
         for line in f:
@@ -19,6 +18,7 @@ TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 STATE_FILE = "grades_state.json"
+HISTORICAL_PERIODS = [("2025", "1"), ("2025", "2")]
 
 HEADERS = {
     "User-Agent": (
@@ -129,12 +129,12 @@ def login_siakad() -> requests.Session:
 
 def clean_val(text: str) -> str:
     cleaned = text.replace("\xa0", " ").strip()
-    return "-" if cleaned in ("", " ") else cleaned
+    return "-" if cleaned in ("", " ") else cleaned
 
 
-def fetch_khs(session: requests.Session):
+def get_khs_form_defaults(session: requests.Session) -> tuple[str, str, str]:
+    """Mengambil NAMA serta Tahun & PRD default dari halaman KHS."""
     khs_url = f"{BASE_URL}/default.php?mod=layanan&page=Laporan%20Nilai%20IP%20Semester"
-
     init_resp = session.get(khs_url, timeout=20)
     init_resp.raise_for_status()
     init_soup = BeautifulSoup(init_resp.text, "html.parser")
@@ -161,7 +161,11 @@ def fetch_khs(session: requests.Session):
 
     tahun = os.environ.get("KHS_TAHUN", tahun)
     prd = os.environ.get("KHS_PRD", prd)
+    return nama, tahun, prd
 
+
+def fetch_khs(session: requests.Session, nama: str, tahun: str, prd: str):
+    khs_url = f"{BASE_URL}/default.php?mod=layanan&page=Laporan%20Nilai%20IP%20Semester"
     form_data = {
         "NIM": NIM,
         "NAMA": nama,
@@ -256,7 +260,21 @@ def main():
         state_changed = True
 
     session = login_siakad()
-    current = fetch_khs(session)
+    nama, active_tahun, active_prd = get_khs_form_defaults(session)
+
+    # 0. Tarik riwayat semester 2025-1 & 2025-2 jika belum tersimpan di grades_state.json
+    for hist_tahun, hist_prd in HISTORICAL_PERIODS:
+        hist_key = f"{hist_tahun}-{hist_prd}"
+        if not old_state.get(hist_key, {}).get("courses"):
+            print(f"Mengambil riwayat nilai {hist_key}...")
+            hist_data = fetch_khs(session, nama, hist_tahun, hist_prd)
+            if hist_data and hist_data["courses"]:
+                old_state[hist_key] = hist_data
+                state_changed = True
+                print(f"Riwayat nilai {hist_key} ({len(hist_data['courses'])} matkul) berhasil disimpan.")
+
+    # 1. Cek perubahan nilai otomatis untuk semester aktif (2026-1)
+    current = fetch_khs(session, nama, active_tahun, active_prd)
     if not current:
         if state_changed:
             save_state(old_state)
@@ -266,7 +284,6 @@ def main():
     old_periode_data = old_state.get(periode, {})
     old_courses = old_periode_data.get("courses", {})
 
-    # 1. Cek perubahan nilai otomatis
     if not old_courses:
         old_state[periode] = current
         state_changed = True

@@ -1,4 +1,270 @@
 {
+  "2025-1": {
+    "periode": "2025-1",
+    "ips": "-",
+    "ipk": "-",
+    "courses": {
+      "AK-296": {
+        "matkul": "Dasar Akuntansi",
+        "sks": "2",
+        "grades": {
+          "Nilai ke-1": "70",
+          "Nilai ke-2": "75",
+          "Nilai ke-3": "85",
+          "Nilai ke-4": "-",
+          "Nilai ke-5": "-",
+          "Nilai UAS": "88",
+          "Nilai Akhir": "80.05",
+          "Nilai Huruf": "A"
+        }
+      },
+      "IF-104": {
+        "matkul": "Algoritma dan Pemrograman",
+        "sks": "4",
+        "grades": {
+          "Nilai ke-1": "83",
+          "Nilai ke-2": "100",
+          "Nilai ke-3": "-",
+          "Nilai ke-4": "-",
+          "Nilai ke-5": "-",
+          "Nilai UAS": "70",
+          "Nilai Akhir": "80.75",
+          "Nilai Huruf": "A"
+        }
+      },
+      "IF-105": {
+        "matkul": "Pengantar Teknologi Informasi",
+        "sks": "3",
+        "grades": {
+          "Nilai ke-1": "77",
+          "Nilai ke-2": "82",
+          "Nilai ke-3": "90",
+          "Nilai ke-4": "79",
+          "Nilai ke-5": "-",
+          "Nilai UAS": "78",
+          "Nilai Akhir": "81.2",
+          "Nilai Huruf": "A"
+        }
+      },
+      "IF-1P3": {
+        "matkul": "Desain Web",
+        "sks": "2",
+        "grades": {
+          "Nilai ke-1": "30",
+          "Nilai ke-2": "55",
+          "Nilai ke-3": "85",
+          "Nilai ke-4": "77",
+          "Nilai ke-5": "-",
+          "Nilai UAS": "77",
+          "Nilai Akhir": "64",
+          "Nilai Huruf": "B-"
+        }
+      },
+      "IF-1P4": {
+        "matkul": "Praktikum Algoritma dan Pemrograman",
+        "sks": "1",
+        "grades": {
+          "Nilai ke-1": "97",
+          "Nilai ke-2": "89",
+          "Nilai ke-3": "95",
+          "Nilai ke-4": "-",
+          "Nilai ke-5": "-",
+          "Nilai UAS": "74",
+          "Nilai Akhir": "89.25",
+          "Nilai Huruf": "A"
+        }
+      },
+      "KU-101": {
+        "matkul": "Pendidikan Agama",
+        "sks": "2",
+        "grades": {
+          "Nilai ke-1": "-",
+          "Nilai ke-2": "-",
+          "Nilai ke-3": "-",
+          "Nilai ke-4": "-",
+          "Nilai ke-5": "80",
+          "Nilai UAS": "-",
+          "Nilai Akhir": "80",
+          "Nilai Huruf": "A"
+        }
+      },
+      "KU-103": {
+        "matkul": "Core Skills and Character",
+        "sks": "2",
+        "grades": {
+          "Nilai ke-1": "87",
+          "Nilai ke-2": "-",
+          "Nilai ke-3": "-",
+          "Nilai ke-4": "-",
+          "Nilai ke-5": "-",
+          "Nilai UAS": "-",
+          "Nilai Akhir": "87",
+          "Nilai Huruf": "A"
+        }
+      },
+      "KU-113": {
+        "matkul": "Pancasila",
+        "sks": "2",
+        "grades": {
+          "Nilai ke-1": "90",
+          "Nilai ke-2": "84",
+          "Nilai ke-3": "86",
+          "Nilai ke-4": "-",
+          "Nilai ke-5": "-",
+          "Nilai UAS": "86",
+          "Nilai Akhir": "86.4",
+          "Nilai Huruf": "A"
+        }
+      },
+      "P1-122": {
+        "matkul": "Professional Competency",
+        "sks": "2",
+        "grades": {
+          "Nilai ke-1": "78",
+          "Nilai ke-2": "-",
+          "Nilai ke-3": "-",
+          "Nilai ke-4": "-",
+          "Nilai ke-5": "-",
+          "Nilai UAS": "-",
+          "Nilai Akhir": "78",
+          "Nilai Huruf": "A-"
+        }
+      }
+    }
+  },
+  "2025-2": {
+    "periode": "2025-2",
+    "ips": "-",
+    "ipk": "-",
+    "courses": {
+      "IF-201": {
+        "matkul": "Struktur Data",
+        "sks": "4",
+        "grades": {
+          "Nilai ke-1": "60",
+          "Nilai ke-2": "70",
+          "Nilai ke-3": "15",
+          "Nilai ke-4": "-",
+          "Nilai ke-5": "-",
+          "Nilai UAS": "72",
+          "Nilai Akhir": "58.1",
+          "Nilai Huruf": "C"
+        }
+      },
+      "IF-202": {
+        "matkul": "Matematika Informatika",
+        "sks": "3",
+        "grades": {
+          "Nilai ke-1": "100",
+          "Nilai ke-2": "96.19",
+          "Nilai ke-3": "78",
+          "Nilai ke-4": "62",
+          "Nilai ke-5": "-",
+          "Nilai UAS": "66",
+          "Nilai Akhir": "78.1285",
+          "Nilai Huruf": "A-"
+        }
+      },
+      "IF-205": {
+        "matkul": "Probstats for Informatics",
+        "sks": "3",
+        "grades": {
+          "Nilai ke-1": "96",
+          "Nilai ke-2": "82",
+          "Nilai ke-3": "95",
+          "Nilai ke-4": "85",
+          "Nilai ke-5": "85",
+          "Nilai UAS": "85",
+          "Nilai Akhir": "88.8",
+          "Nilai Huruf": "A"
+        }
+      },
+      "IF-2P1": {
+        "matkul": "Praktikum Struktur Data",
+        "sks": "1",
+        "grades": {
+          "Nilai ke-1": "77.86",
+          "Nilai ke-2": "89.5",
+          "Nilai ke-3": "86",
+          "Nilai ke-4": "-",
+          "Nilai ke-5": "-",
+          "Nilai UAS": "80",
+          "Nilai Akhir": "82.865",
+          "Nilai Huruf": "A"
+        }
+      },
+      "IF-2P4": {
+        "matkul": "Pemrograman Web",
+        "sks": "2",
+        "grades": {
+          "Nilai ke-1": "70",
+          "Nilai ke-2": "55",
+          "Nilai ke-3": "90",
+          "Nilai ke-4": "74",
+          "Nilai ke-5": "-",
+          "Nilai UAS": "63",
+          "Nilai Akhir": "68.1",
+          "Nilai Huruf": "B"
+        }
+      },
+      "KU-114": {
+        "matkul": "Kewarganegaraan",
+        "sks": "2",
+        "grades": {
+          "Nilai ke-1": "69",
+          "Nilai ke-2": "82",
+          "Nilai ke-3": "82",
+          "Nilai ke-4": "-",
+          "Nilai ke-5": "-",
+          "Nilai UAS": "90",
+          "Nilai Akhir": "84.05",
+          "Nilai Huruf": "A"
+        }
+      },
+      "KU-118": {
+        "matkul": "English",
+        "sks": "2",
+        "grades": {
+          "Nilai ke-1": "90",
+          "Nilai ke-2": "83",
+          "Nilai ke-3": "77",
+          "Nilai ke-4": "-",
+          "Nilai ke-5": "-",
+          "Nilai UAS": "90",
+          "Nilai Akhir": "84.35",
+          "Nilai Huruf": "A"
+        }
+      },
+      "KU-204": {
+        "matkul": "Bahasa Indonesia",
+        "sks": "2",
+        "grades": {
+          "Nilai ke-1": "56",
+          "Nilai ke-2": "92",
+          "Nilai ke-3": "68",
+          "Nilai ke-4": "-",
+          "Nilai ke-5": "-",
+          "Nilai UAS": "68",
+          "Nilai Akhir": "72.8",
+          "Nilai Huruf": "B+"
+        }
+      },
+      "KU-707": {
+        "matkul": "Critical Thinking",
+        "sks": "2",
+        "grades": {
+          "Nilai ke-1": "85",
+          "Nilai ke-2": "80",
+          "Nilai ke-3": "65",
+          "Nilai ke-4": "70",
+          "Nilai ke-5": "85",
+          "Nilai UAS": "70",
+          "Nilai Akhir": "76",
+          "Nilai Huruf": "A-"
+        }
+      }
+    }
+  },
   "2026-1": {
     "periode": "2026-1",
     "ips": "-",
@@ -117,5 +383,6 @@
         }
       }
     }
-  }
+  },
+  "last_telegram_update_id": 282739623
 }
