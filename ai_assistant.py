@@ -3,7 +3,8 @@ import json
 import os
 import threading
 import time
-from datetime import datetime
+from collections import deque
+from datetime import datetime, time as dt_time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from zoneinfo import ZoneInfo
 
@@ -28,7 +29,7 @@ if os.path.exists(".env"):
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 k, v = line.split("=", 1)
-                os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+                os.environ[k.strip()] = v.strip().strip('"').strip("'")
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 ALLOWED_CHAT_ID = str(os.environ.get("TELEGRAM_CHAT_ID", ""))
@@ -37,6 +38,25 @@ CALENDAR_ID = os.environ.get("GOOGLE_CALENDAR_ID", "primary")
 TZ_NAME = "Asia/Jakarta"
 TZ = ZoneInfo(TZ_NAME)
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
+MEMORY_FILE = "aira_memory.json"
+
+# Menyimpan 12 interaksi terakhir agar percakapan nyambung
+CHAT_HISTORY = deque(maxlen=12)
+
+
+def load_memory_store() -> dict:
+    if not os.path.exists(MEMORY_FILE):
+        return {"facts": [], "tasks": []}
+    with open(MEMORY_FILE, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    data.setdefault("facts", [])
+    data.setdefault("tasks", [])
+    return data
+
+
+def save_memory_store(data: dict):
+    with open(MEMORY_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
 
 
 def get_calendar_service():
@@ -60,12 +80,12 @@ def get_calendar_service():
 
 
 # ==========================================
-# TOOLS UNTUK GEMINI FUNCTION CALLING
+# TOOLS UNTUK AIRA (FUNCTION CALLING)
 # ==========================================
 
 
 def get_schedule(start_iso: str, end_iso: str) -> str:
-    """Mengambil daftar acara dan jadwal kuliah dari Google Calendar beserta event_id-nya pada rentang waktu ISO 8601 (misal: 2026-11-28T00:00:00+07:00)."""
+    """Mengambil daftar acara dan jadwal dari Google Calendar beserta event_id-nya pada rentang waktu ISO 8601 (misal: 2026-11-28T00:00:00+07:00)."""
     service = get_calendar_service()
     events_result = (
         service.events()
@@ -131,7 +151,6 @@ def find_free_slots(
 
     busy_intervals.sort(key=lambda x: x[0])
 
-    # Gabungkan interval sibuk yang tumpang tindih
     merged = []
     for s, e in busy_intervals:
         if s >= e:
@@ -180,7 +199,7 @@ def create_calendar_event(
         "start": {"dateTime": start_iso, "timeZone": TZ_NAME},
         "end": {"dateTime": end_iso, "timeZone": TZ_NAME},
         "extendedProperties": {
-            "private": {"source": "ai_assistant"}
+            "private": {"source": "aira_assistant"}
         },
     }
     created = service.events().insert(calendarId=CALENDAR_ID, body=event_body).execute()
@@ -195,17 +214,50 @@ def create_calendar_event(
 
 
 def delete_calendar_event(event_id: str) -> str:
-    """Menghapus acara atau jadwal dari Google Calendar berdasarkan event_id. Selalu panggil get_schedule terlebih dahulu untuk mendapatkan event_id yang tepat sebelum menghapus."""
+    """Menghapus acara atau jadwal dari Google Calendar berdasarkan event_id. Selalu panggil get_schedule terlebih dahulu untuk mendapatkan event_id yang tepat."""
     service = get_calendar_service()
     service.events().delete(calendarId=CALENDAR_ID, eventId=event_id).execute()
-    return json.dumps({
-        "status": "deleted",
-        "event_id": event_id,
-    }, ensure_ascii=False)
+    return json.dumps({"status": "deleted", "event_id": event_id}, ensure_ascii=False)
+
+
+def manage_tasks(action: str, task_text: str = "", task_index: int = -1) -> str:
+    """Mengelola daftar tugas / to-do list pribadi. action bisa berupa: 'add', 'list', 'done', atau 'delete'. Untuk 'done'/'delete', gunakan task_index (mulai dari 1)."""
+    store = load_memory_store()
+    tasks = store["tasks"]
+
+    if action == "add" and task_text:
+        tasks.append({
+            "task": task_text,
+            "done": False,
+            "created_at": datetime.now(TZ).strftime("%Y-%m-%d %H:%M"),
+        })
+        save_memory_store(store)
+        return json.dumps({"status": "added", "task": task_text, "total_tasks": len(tasks)}, ensure_ascii=False)
+
+    if action in ("done", "delete") and 1 <= task_index <= len(tasks):
+        target = tasks[task_index - 1]
+        if action == "done":
+            target["done"] = True
+        else:
+            tasks.pop(task_index - 1)
+        save_memory_store(store)
+        return json.dumps({"status": action, "task": target}, ensure_ascii=False)
+
+    numbered = [{"index": i + 1, **t} for i, t in enumerate(tasks)]
+    return json.dumps({"status": "ok", "tasks": numbered}, ensure_ascii=False)
+
+
+def remember_fact(fact: str) -> str:
+    """Menyimpan fakta, preferensi, catatan penting, atau konteks jangka panjang pengguna ke memori permanen Aira."""
+    store = load_memory_store()
+    if fact not in store["facts"]:
+        store["facts"].append(fact)
+        save_memory_store(store)
+    return json.dumps({"status": "remembered", "fact": fact}, ensure_ascii=False)
 
 
 def get_latest_grades() -> str:
-    """Membaca data nilai KHS terbaru yang tersimpan di grades_state.json."""
+    """Membaca data nilai KHS mahasiswa (termasuk riwayat 2025-1, 2025-2, dan semester aktif) dari grades_state.json."""
     if not os.path.exists("grades_state.json"):
         return json.dumps({"status": "not_found", "message": "File grades_state.json belum ada."})
     with open("grades_state.json", "r", encoding="utf-8") as f:
@@ -213,7 +265,7 @@ def get_latest_grades() -> str:
 
 
 # ==========================================
-# GEMINI AGENT & TELEGRAM HANDLERS
+# AIRA BRAIN & TELEGRAM HANDLERS
 # ==========================================
 
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
@@ -222,22 +274,34 @@ TOOLS = [
     find_free_slots,
     create_calendar_event,
     delete_calendar_event,
+    manage_tasks,
+    remember_fact,
     get_latest_grades,
 ]
 
 
-def ask_gemini_agent(user_content) -> str:
+def ask_aira(user_content, history_label: str = "") -> str:
     now = datetime.now(TZ)
     hari_id = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"][now.weekday()]
+    store = load_memory_store()
+
+    facts_block = "\n".join(f"- {f}" for f in store["facts"]) if store["facts"] else "- (Belum ada catatan permanen)"
+    pending_tasks = [f"{i+1}. {t['task']}" for i, t in enumerate(store["tasks"]) if not t.get("done")]
+    tasks_block = "\n".join(pending_tasks) if pending_tasks else "- (Tidak ada tugas tertunda)"
+
+    recent_chat = "\n".join(CHAT_HISTORY) if CHAT_HISTORY else "(Percakapan baru)"
 
     system_instruction = (
-        f"Kamu adalah Asisten Akademik & Kalender pribadi untuk mahasiswa Informatika ITHB.\n"
-        f"Waktu saat ini: {hari_id}, {now.strftime('%Y-%m-%d %H:%M')} WIB (UTC+07:00).\n"
-        f"Pengguna dapat memberikan perintah lewat teks maupun pesan suara (voice note).\n"
-        f"Gunakan tools yang tersedia untuk membaca jadwal kuliah, mencari waktu kosong, menjadwalkan kegiatan baru, menghapus jadwal, atau mengecek nilai KHS.\n"
-        f"Jika pengguna meminta menghapus suatu jadwal, panggil get_schedule terlebih dahulu untuk memastikan nama dan event_id jadwal tersebut sebelum memanggil delete_calendar_event. Jika ada lebih dari satu jadwal yang mirip atau ambigu, tanyakan konfirmasi ke pengguna dulu.\n"
-        f"Jika pengguna meminta mencari waktu kosong dalam rentang beberapa hari (misalnya 'minggu ini'), panggil find_free_slots untuk masing-masing hari yang relevan.\n"
-        f"Jawab dengan ringkas, jelas, ramah, dan gunakan format poin yang rapi."
+        f"Kamu adalah Aira (Artificial Intelligence & Routine Assistant), asisten AI pribadi yang cerdas, sigap, hangat, dan suportif (panggil pengguna dengan 'Jer' secara natural dan akrab, bukan kaku seperti robot).\n"
+        f"Waktu saat ini: {hari_id}, {now.strftime('%Y-%m-%d %H:%M')} WIB (UTC+07:00).\n\n"
+        f"MEMORI PERMANEN TENTANG PENGGUNA:\n{facts_block}\n\n"
+        f"DAFTAR TUGAS AKTIF SAAT INI:\n{tasks_block}\n\n"
+        f"RIWAYAT PERCAKAPAN TERAKHIR:\n{recent_chat}\n\n"
+        f"ATURAN OPERASIONAL:\n"
+        f"1. Pengguna bisa mengirim teks maupun voice note. Pahami maksudnya secara menyeluruh dan langsung eksekusi tool yang tepat tanpa bertele-tele.\n"
+        f"2. Jika pengguna menyebut sesuatu yang layak diingat jangka panjang (preferensi, jadwal rutin, proyek, info penting), panggil remember_fact.\n"
+        f"3. Jika pengguna meminta menghapus jadwal, panggil get_schedule dulu untuk mendapat event_id, lalu panggil delete_calendar_event.\n"
+        f"4. Jawab dengan ringkas, jelas, ramah, dan terstruktur."
     )
 
     models_to_try = [
@@ -256,10 +320,14 @@ def ask_gemini_agent(user_content) -> str:
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
                     tools=TOOLS,
-                    temperature=0.2,
+                    temperature=0.3,
                 ),
             )
-            return response.text or "Selesai diproses."
+            reply_text = response.text or "Sudah beres ya, Jer."
+            if history_label:
+                CHAT_HISTORY.append(f"User: {history_label}")
+            CHAT_HISTORY.append(f"Aira: {reply_text}")
+            return reply_text
         except Exception as e:
             last_error = e
             err_str = str(e)
@@ -271,17 +339,32 @@ def ask_gemini_agent(user_content) -> str:
     raise last_error
 
 
+async def morning_briefing_job(context: ContextTypes.DEFAULT_TYPE):
+    """Mengirim briefing pagi otomatis setiap pukul 06:30 WIB."""
+    if not ALLOWED_CHAT_ID:
+        return
+    try:
+        prompt = (
+            "Berikan sapaan pagi dan Morning Briefing singkat untuk hari ini: "
+            "cek seluruh jadwal kalender hari ini menggunakan get_schedule, "
+            "gabungkan dengan daftar tugas aktif yang belum selesai, dan beri rangkuman yang enak dibaca."
+        )
+        briefing = ask_aira(prompt, history_label="[Sistem: Morning Briefing 06:30]")
+        await context.bot.send_message(chat_id=ALLOWED_CHAT_ID, text=briefing)
+    except Exception as e:
+        print(f"Gagal mengirim morning briefing: {e}")
+
+
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(update.effective_chat.id) != ALLOWED_CHAT_ID:
         return
     await update.message.reply_text(
-        "Halo! Asisten Akademik & Kalender ITHB aktif (mendukung Teks & Voice Note).\n\n"
-        "Contoh yang bisa kamu kirim lewat ketikan atau suara:\n"
-        "• \"Jadwal kuliah besok apa aja?\"\n"
-        "• \"Carikan waktu kosong minimal 2 jam besok buat ngerjain tugas\"\n"
-        "• \"Tolong blok jam 15.00-17.00 besok buat ngajar privat\"\n"
-        "• \"Hapus jadwal ngajar privat besok\"\n"
-        "• \"Gimana rekap nilai KHS aku sekarang?\""
+        "Halo Jer! Aira sudah aktif dan siap bantu aktivitasmu hari ini.\n\n"
+        "Yang bisa aku bantu lewat chat atau voice note:\n"
+        "• Atur Kalender (cek jadwal, cari waktu kosong, buat & hapus acara)\n"
+        "• To-Do List & Memori (catat tugas, ide, atau hal penting yang perlu aku ingat)\n"
+        "• Pantau Nilai KHS (cek rekap nilai kuliah dari 2025-1 sampai sekarang)\n"
+        "• Morning Briefing otomatis tiap jam 06.30 pagi"
     )
 
 
@@ -292,10 +375,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.chat.send_action("typing")
+    user_text = update.message.text
     try:
-        reply = ask_gemini_agent(update.message.text)
+        reply = ask_aira(user_text, history_label=user_text)
     except Exception as e:
-        reply = f"Terjadi kendala saat memproses permintaan: {e}"
+        reply = f"Maaf Jer, ada kendala sistem pas memproses permintaanmu: {e}"
 
     await update.message.reply_text(reply)
 
@@ -315,11 +399,11 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         contents = [
             types.Part.from_bytes(data=audio_bytes, mime_type="audio/ogg"),
-            "Dengarkan pesan suara pengguna di atas dan jalankan permintaan atau pertanyaan kalender/akademik yang dimaksud.",
+            "Dengarkan pesan suara pengguna di atas dan jalankan perintah atau pertanyaan yang dimaksud sebagai Aira.",
         ]
-        reply = ask_gemini_agent(contents)
+        reply = ask_aira(contents, history_label="[Voice Note dari User]")
     except Exception as e:
-        reply = f"Terjadi kendala saat memproses voice note: {e}"
+        reply = f"Maaf Jer, ada kendala pas memproses voice note kamu: {e}"
 
     await update.message.reply_text(reply)
 
@@ -333,7 +417,7 @@ class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"OK")
+        self.wfile.write(b"AIRA ONLINE")
 
     def log_message(self, format, *args):
         pass
@@ -356,7 +440,15 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
 
-    print("AI Assistant Telegram (Teks & Voice) berjalan... Tekan Ctrl+C untuk berhenti.")
+    # Jadwalkan Morning Briefing otomatis pukul 06:30 WIB setiap hari
+    if app.job_queue:
+        app.job_queue.run_daily(
+            morning_briefing_job,
+            time=dt_time(hour=6, minute=30, tzinfo=TZ),
+            name="morning_briefing",
+        )
+
+    print("Aira aktif (Teks, Voice, Memori, & Morning Briefing)... Tekan Ctrl+C untuk berhenti.")
     app.run_polling()
 
 
