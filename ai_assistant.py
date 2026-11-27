@@ -223,30 +223,27 @@ def ask_gemini_agent(user_content) -> str:
         "gemini-3.8-flash-lite",
     ]
     last_error = None
-
-    for attempt in range(3):
-        for model_name in models_to_try:
-            try:
-                response = gemini_client.models.generate_content(
-                    model=model_name,
-                    contents=user_content,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_instruction,
-                        tools=TOOLS,
-                        temperature=0.2,
-                    ),
-                )
-                return response.text or "Selesai diproses."
-            except Exception as e:
-                last_error = e
-                err_str = str(e)
-                if "503" in err_str or "UNAVAILABLE" in err_str or "404" in err_str:
-                    continue
-                raise
-        time.sleep(2 ** (attempt + 1))  # Tunggu 2s, lalu 4s, lalu 8s sebelum retry
+    for attempt in range(4):
+        try:
+            response = gemini_client.models.generate_content(
+                model="gemini-3.8-flash",
+                contents=user_content,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    tools=TOOLS,
+                    temperature=0.2,
+                ),
+            )
+            return response.text or "Selesai diproses."
+        except Exception as e:
+            last_error = e
+            err_str = str(e)
+            if "503" in err_str or "UNAVAILABLE" in err_str:
+                time.sleep(2 ** (attempt + 1))  # Tunggu 2s, 4s, 8s, 16s
+                continue
+            raise
 
     raise last_error
-
 
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(update.effective_chat.id) != ALLOWED_CHAT_ID:
