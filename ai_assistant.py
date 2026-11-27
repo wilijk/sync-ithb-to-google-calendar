@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -56,8 +57,9 @@ def get_calendar_service():
     return build("calendar", "v3", credentials=creds)
 
 
- 
+# ==========================================
 # TOOLS UNTUK GEMINI FUNCTION CALLING
+# ==========================================
 
 def get_schedule(start_iso: str, end_iso: str) -> str:
     """Mengambil daftar acara dan jadwal kuliah dari Google Calendar pada rentang waktu ISO 8601 (misal: 2026-11-28T00:00:00+07:00)."""
@@ -195,7 +197,9 @@ def get_latest_grades() -> str:
         return f.read()
 
 
+# ==========================================
 # GEMINI AGENT & TELEGRAM HANDLERS
+# ==========================================
 
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 TOOLS = [get_schedule, find_free_slots, create_calendar_event, get_latest_grades]
@@ -214,16 +218,30 @@ def ask_gemini_agent(user_content) -> str:
         f"Jawab dengan ringkas, jelas, ramah, dan gunakan format poin yang rapi."
     )
 
-    response = gemini_client.models.generate_content(
-        model="gemini-3.8-flash",
-        contents=user_content,
-        config=types.GenerateContentConfig(
-            system_instruction=system_instruction,
-            tools=TOOLS,
-            temperature=0.2,
-        ),
-    )
-    return response.text or "Selesai diproses."
+    models_to_try = ["gemini-3.8-flash", "gemini-3.8-flash-lite"]
+    last_error = None
+
+    for model_name in models_to_try:
+        for attempt in range(2):
+            try:
+                response = gemini_client.models.generate_content(
+                    model=model_name,
+                    contents=user_content,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        tools=TOOLS,
+                        temperature=0.2,
+                    ),
+                )
+                return response.text or "Selesai diproses."
+            except Exception as e:
+                last_error = e
+                if "503" in str(e) or "UNAVAILABLE" in str(e):
+                    time.sleep(2)
+                    continue
+                raise
+
+    raise last_error
 
 
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
