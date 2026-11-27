@@ -218,28 +218,33 @@ def ask_gemini_agent(user_content) -> str:
         f"Jawab dengan ringkas, jelas, ramah, dan gunakan format poin yang rapi."
     )
 
-    models_to_try = ["gemini-3.8-flash", "gemini-3.8-flash-lite"]
+    models_to_try = [
+        "gemini-3.8-flash",
+        "gemini-3.8-flash-lite",
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+    ]
     last_error = None
 
     for model_name in models_to_try:
-        for attempt in range(2):
-            try:
-                response = gemini_client.models.generate_content(
-                    model=model_name,
-                    contents=user_content,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_instruction,
-                        tools=TOOLS,
-                        temperature=0.2,
-                    ),
-                )
-                return response.text or "Selesai diproses."
-            except Exception as e:
-                last_error = e
-                if "503" in str(e) or "UNAVAILABLE" in str(e):
-                    time.sleep(2)
-                    continue
-                raise
+        try:
+            response = gemini_client.models.generate_content(
+                model=model_name,
+                contents=user_content,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    tools=TOOLS,
+                    temperature=0.2,
+                ),
+            )
+            return response.text or "Selesai diproses."
+        except Exception as e:
+            last_error = e
+            err_str = str(e)
+            if "503" in err_str or "UNAVAILABLE" in err_str or "404" in err_str:
+                time.sleep(1.5)
+                continue
+            raise
 
     raise last_error
 
