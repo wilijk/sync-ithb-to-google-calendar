@@ -42,7 +42,58 @@ def send_telegram(message: str):
     }
     resp = requests.post(url, json=payload, timeout=15)
     resp.raise_for_status()
-    print("Telegram notification sent.")
+    print("Telegram message sent.")
+
+
+def check_telegram_commands(last_update_id: int) -> tuple[bool, int]:
+    """Mengecek apakah ada perintah /nilai baru dari Chat ID yang sah."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return False, last_update_id
+
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
+    params = {"offset": last_update_id + 1, "timeout": 5}
+    try:
+        resp = requests.get(url, params=params, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as e:
+        print(f"Gagal membaca getUpdates Telegram: {e}")
+        return False, last_update_id
+
+    requested_recap = False
+    new_last_id = last_update_id
+
+    for item in data.get("result", []):
+        upd_id = item.get("update_id", 0)
+        if upd_id > new_last_id:
+            new_last_id = upd_id
+
+        msg = item.get("message", {})
+        chat_id = str(msg.get("chat", {}).get("id", ""))
+        text = msg.get("text", "").strip().lower()
+
+        if chat_id == str(TELEGRAM_CHAT_ID) and text in ("/nilai", "/rekap", "nilai"):
+            requested_recap = True
+
+    return requested_recap, new_last_id
+
+
+def format_full_recap(current: dict) -> str:
+    periode = current["periode"]
+    lines = [f"📋 <b>Rekap Nilai KHS SIAKAD ({periode})</b>\n"]
+
+    for kode, info in current["courses"].items():
+        grades = info["grades"]
+        filled = [
+            f"{k.replace('Nilai ', '')}: <b>{v}</b>"
+            for k, v in grades.items()
+            if v != "-"
+        ]
+        detail_str = " | ".join(filled) if filled else "<i>Belum ada nilai</i>"
+        lines.append(f"📘 <b>{info['matkul']}</b> (<code>{kode}</code>)\n   {detail_str}")
+
+    lines.append(f"\n📊 <b>IPS:</b> {current['ips']} | <b>IPK:</b> {current['ipk']}")
+    return "\n\n".join(lines)
 
 
 def login_siakad() -> requests.Session:
@@ -84,7 +135,6 @@ def clean_val(text: str) -> str:
 def fetch_khs(session: requests.Session):
     khs_url = f"{BASE_URL}/default.php?mod=layanan&page=Laporan%20Nilai%20IP%20Semester"
 
-    # 1. Buka halaman awal untuk memastikan login berhasil & ambil parameter default
     init_resp = session.get(khs_url, timeout=20)
     init_resp.raise_for_status()
     init_soup = BeautifulSoup(init_resp.text, "html.parser")
@@ -110,9 +160,8 @@ def fetch_khs(session: requests.Session):
             prd = selected_prd["value"].strip()
 
     tahun = os.environ.get("KHS_TAHUN", tahun)
-    prd = os.environ.get("KHS_PRD", prd)  # 1 = Ganjil, 2 = Genap, 0 = Pendek
+    prd = os.environ.get("KHS_PRD", prd)
 
-    # 2. Kirim POST untuk menampilkan tabel KHS
     form_data = {
         "NIM": NIM,
         "NAMA": nama,
@@ -197,54 +246,71 @@ def save_state(state: dict):
 
 
 def main():
+    old_state = load_state()
+    last_update_id = old_state.get("last_telegram_update_id", 0)
+    requested_recap, new_last_id = check_telegram_commands(last_update_id)
+
+    state_changed = False
+    if new_last_id != last_update_id:
+        old_state["last_telegram_update_id"] = new_last_id
+        state_changed = True
+
     session = login_siakad()
     current = fetch_khs(session)
     if not current:
+        if state_changed:
+            save_state(old_state)
         return
 
-    old_state = load_state()
     periode = current["periode"]
     old_periode_data = old_state.get(periode, {})
     old_courses = old_periode_data.get("courses", {})
 
+    # 1. Cek perubahan nilai otomatis
     if not old_courses:
         old_state[periode] = current
-        save_state(old_state)
+        state_changed = True
         summary_lines = [
             f"✅ <b>Monitoring Nilai SIAKAD Aktif ({periode})</b>",
             f"Total Mata Kuliah: {len(current['courses'])} | IPS: {current['ips']} | IPK: {current['ipk']}",
-            "Bot akan langsung mengirim rincian mata kuliah, nilai ke berapa, dan skornya setiap kali ada nilai baru masuk.",
+            "Ketik <code>/nilai</code> kapan saja untuk meminta rekap seluruh nilai saat ini.",
         ]
         send_telegram("\n".join(summary_lines))
-        return
-
-    updates = []
-    for kode, info in current["courses"].items():
-        prev_info = old_courses.get(kode, {})
-        prev_grades = prev_info.get("grades", {})
-        curr_grades = info["grades"]
-
-        changed_items = []
-        for comp, new_val in curr_grades.items():
-            old_val = prev_grades.get(comp, "-")
-            if new_val != old_val and new_val != "-":
-                if old_val == "-":
-                    changed_items.append(f"• <b>{comp}</b>: <b>{new_val}</b> <i>(baru diinput)</i>")
-                else:
-                    changed_items.append(f"• <b>{comp}</b>: <code>{old_val}</code> → <b>{new_val}</b> <i>(diperbarui)</i>")
-
-        if changed_items:
-            block = f"📘 <b>{info['matkul']}</b> (<code>{kode}</code>)\n" + "\n".join(changed_items)
-            updates.append(block)
-
-    if updates:
-        header = f"🔔 <b>Nilai Baru SIAKAD ITHB ({periode})</b>\n\n"
-        footer = f"\n\n📊 <b>IPS:</b> {current['ips']} | <b>IPK:</b> {current['ipk']}"
-        send_telegram(header + "\n\n".join(updates) + footer)
-        old_state[periode] = current
-        save_state(old_state)
     else:
-        print("Tidak ada perubahan nilai.")
+        updates = []
+        for kode, info in current["courses"].items():
+            prev_info = old_courses.get(kode, {})
+            prev_grades = prev_info.get("grades", {})
+            curr_grades = info["grades"]
+
+            changed_items = []
+            for comp, new_val in curr_grades.items():
+                old_val = prev_grades.get(comp, "-")
+                if new_val != old_val and new_val != "-":
+                    if old_val == "-":
+                        changed_items.append(f"• <b>{comp}</b>: <b>{new_val}</b> <i>(baru diinput)</i>")
+                    else:
+                        changed_items.append(f"• <b>{comp}</b>: <code>{old_val}</code> → <b>{new_val}</b> <i>(diperbarui)</i>")
+
+            if changed_items:
+                block = f"📘 <b>{info['matkul']}</b> (<code>{kode}</code>)\n" + "\n".join(changed_items)
+                updates.append(block)
+
+        if updates:
+            header = f"🔔 <b>Nilai Baru SIAKAD ITHB ({periode})</b>\n\n"
+            footer = f"\n\n📊 <b>IPS:</b> {current['ips']} | <b>IPK:</b> {current['ipk']}"
+            send_telegram(header + "\n\n".join(updates) + footer)
+            old_state[periode] = current
+            state_changed = True
+
+    # 2. Jika ada perintah /nilai dari Telegram, kirim rekap lengkap
+    if requested_recap:
+        send_telegram(format_full_recap(current))
+
+    if state_changed:
+        save_state(old_state)
+    elif not requested_recap:
+        print("Tidak ada perubahan nilai maupun perintah baru.")
 
 
 if __name__ == "__main__":
